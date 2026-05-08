@@ -231,15 +231,52 @@
       class="boot__video"
       src="assets/videos/1.mp4"
       poster="assets/images/8906584_1_20260408150341.jpg"
-      autoplay muted loop playsinline preload="auto"
+      autoplay
+      muted
+      loop
+      playsinline
+      webkit-playsinline=""
+      preload="auto"
+      x-webkit-airplay="deny"
+      disablepictureinpicture=""
+      disableremoteplayback=""
     ></video>
     <div class="boot__veil"></div>
     <h1 class="boot__title">Villa Rhode</h1>
     <span class="boot__hint">Christie's</span>
   </div>
   <script>
-    // Si React tarde à monter, on cache le boot quand même au bout de 4s
-    // pour que l'utilisateur voie les photos / le reste du contenu.
+    // Force l'autoplay des vidéos : iOS Safari bloque souvent l'autoplay au
+    // 1er chargement, mais accepte dès qu'il y a la moindre interaction.
+    (function() {
+      function tryPlayAll() {
+        document.querySelectorAll('video').forEach(function(v) {
+          // Force muted + playsinline programmatiquement (parfois nécessaire)
+          v.muted = true;
+          v.setAttribute('playsinline', '');
+          v.setAttribute('webkit-playsinline', '');
+          if (v.paused) {
+            var p = v.play();
+            if (p && typeof p.catch === 'function') p.catch(function() {});
+          }
+        });
+      }
+      // Tente de jouer à plusieurs moments-clés
+      document.addEventListener('DOMContentLoaded', tryPlayAll);
+      window.addEventListener('load', tryPlayAll);
+      // Au moindre touch/click, on relance — iOS l'autorise après interaction
+      ['touchstart', 'click', 'scroll'].forEach(function(evt) {
+        document.addEventListener(evt, tryPlayAll, { once: false, passive: true });
+      });
+      // Toutes les 1.5s pendant 6s pour rattraper d'éventuels blocages
+      var tries = 0;
+      var int = setInterval(function() {
+        tryPlayAll();
+        if (++tries >= 4) clearInterval(int);
+      }, 1500);
+    })();
+
+    // Cache le boot loader après 4s en filet de sécurité
     setTimeout(function() {
       var b = document.getElementById('boot');
       if (b && !b.classList.contains('hidden')) b.classList.add('hidden');
@@ -699,6 +736,19 @@
           {/* Vidéo unique full-bleed avec parallax léger au scroll */}
           <motion.div style={{ y: bgY }} className="absolute inset-0 -z-10">
             <video
+              ref={(el) => {
+                if (!el) return;
+                // Force la lecture quand React monte (iOS bloque parfois autoplay)
+                el.muted = true;
+                el.setAttribute('playsinline', '');
+                el.setAttribute('webkit-playsinline', '');
+                const tryPlay = () => {
+                  const p = el.play();
+                  if (p && typeof p.catch === 'function') p.catch(() => {});
+                };
+                if (el.readyState >= 2) tryPlay();
+                else el.addEventListener('canplay', tryPlay, { once: true });
+              }}
               className="absolute inset-0 h-full w-full object-cover"
               src="assets/videos/1.mp4"
               poster="assets/images/8906584_1_20260408150341.jpg"
